@@ -18,8 +18,67 @@ def run_cmd(cmd):
         # Check for specific git errors and provide helpful solutions
         error_text = (e.stderr or "") + (e.stdout or "")
         
+        # Handle git push specific errors
+        if cmd[0] == "git" and len(cmd) > 1 and cmd[1] == "push":
+            if "rejected" in error_text.lower() and "fetch first" in error_text.lower():
+                print("\n🔄 Push rejected - Remote has newer commits!")
+                print("The remote repository contains work that you don't have locally.")
+                print("This usually happens when:")
+                print("  • Remote repo was created with initial files (README, .gitignore)")
+                print("  • Someone else pushed to the same repository")
+                print("  • You're working with a repository that has diverged")
+                
+                print("\nOptions to resolve:")
+                print("1. Pull and merge remote changes first (recommended)")
+                print("2. Force push (overwrites remote content)")
+                print("3. Skip push for now")
+                
+                while True:
+                    choice = input("\nChoose an option [1/2/3]: ").strip()
+                    if choice == "1":
+                        print("\n🔄 Pulling remote changes...")
+                        try:
+                            pull_result = subprocess.run(["git", "pull", "origin", "main", "--allow-unrelated-histories"], 
+                                                       capture_output=True, text=True, check=True)
+                            print("✅ Successfully pulled remote changes!")
+                            if pull_result.stdout:
+                                print(pull_result.stdout)
+                            
+                            print("🔄 Retrying push...")
+                            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                            if result.stdout:
+                                print(result.stdout)
+                            print("✅ Push successful after merge!")
+                            return result
+                        except subprocess.CalledProcessError as pull_error:
+                            print(f"❌ Pull failed: {pull_error.stderr}")
+                            print("You may need to resolve conflicts manually.")
+                            return None
+                    elif choice == "2":
+                        force_push = input("⚠️  Are you sure you want to force push? This will overwrite remote content [y/N]: ").strip().lower()
+                        if force_push in ("y", "yes"):
+                            try:
+                                force_cmd = ["git", "push", "-f", "-u", "origin", "main"]
+                                print(f"$ {' '.join(force_cmd)}")
+                                result = subprocess.run(force_cmd, capture_output=True, text=True, check=True)
+                                if result.stdout:
+                                    print(result.stdout)
+                                print("✅ Force push successful!")
+                                return result
+                            except subprocess.CalledProcessError as force_error:
+                                print(f"❌ Force push failed: {force_error.stderr}")
+                                return None
+                        else:
+                            print("Force push cancelled.")
+                            return None
+                    elif choice == "3":
+                        print("Push skipped. You can push manually later.")
+                        return None
+                    else:
+                        print("Please enter 1, 2, or 3.")
+        
         # Handle git commit specific errors
-        if cmd[0] == "git" and len(cmd) > 1 and cmd[1] == "commit":
+        elif cmd[0] == "git" and len(cmd) > 1 and cmd[1] == "commit":
             if "nothing to commit" in error_text.lower():
                 print("ℹ️  No changes to commit. This is normal if README.md already exists with the same content.")
                 return None
