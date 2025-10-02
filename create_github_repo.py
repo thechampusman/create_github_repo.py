@@ -11,14 +11,11 @@ def run_cmd(cmd):
             print(result.stdout)
         return result
     except subprocess.CalledProcessError as e:
-        # Print the actual error output
         if e.stderr:
             print(e.stderr)
         
-        # Check for specific git errors and provide helpful solutions
         error_text = (e.stderr or "") + (e.stdout or "")
         
-        # Handle git push specific errors
         if cmd[0] == "git" and len(cmd) > 1 and cmd[1] == "push":
             if "rejected" in error_text.lower() and "fetch first" in error_text.lower():
                 print("\n🔄 Push rejected - Remote has newer commits!")
@@ -77,7 +74,6 @@ def run_cmd(cmd):
                     else:
                         print("Please enter 1, 2, or 3.")
         
-        # Handle git commit specific errors
         elif cmd[0] == "git" and len(cmd) > 1 and cmd[1] == "commit":
             if "nothing to commit" in error_text.lower():
                 print("ℹ️  No changes to commit. This is normal if README.md already exists with the same content.")
@@ -103,7 +99,6 @@ def run_cmd(cmd):
                     print("❌ Email and name are required for git commits.")
                     return None
         
-        # Handle dubious ownership errors
         if cmd[0] == "git" and ("dubious ownership" in error_text.lower() or "safe.directory" in error_text.lower()):
             cwd = os.getcwd()
             print(f"\n🔒 Git Security Issue Detected!")
@@ -163,7 +158,6 @@ def create_readme(path, content):
 
 
 def main():
-    # Support optional CLI args: [target_folder] [remote_url]
     cli_folder = None
     cli_url = None
     if len(sys.argv) > 1:
@@ -172,12 +166,9 @@ def main():
         cli_url = sys.argv[2]
 
     def choose_target_folder(arg=None):
-        # If CLI arg provided, use it.
         if arg:
             path = os.path.abspath(os.path.expanduser(arg))
         else:
-            # Try to open a GUI folder picker first (tkinter). If that fails or user
-            # cancels, fall back to text input in the console.
             try:
                 import tkinter as tk
                 from tkinter import filedialog
@@ -190,7 +181,6 @@ def main():
                 if picked:
                     path = os.path.abspath(picked)
                 else:
-                    # user cancelled GUI picker; fall back to console input
                     raise RuntimeError('GUI folder selection cancelled')
             except Exception:
                 cur = os.getcwd()
@@ -215,7 +205,6 @@ def main():
         gitdir = os.path.join(path, ".git")
         if os.path.isdir(gitdir):
             print(f"Folder '{path}' already appears to be a git repository.")
-            # Check if there's an existing remote
             try:
                 result = subprocess.run(["git", "-C", path, "remote", "get-url", "origin"], 
                                       capture_output=True, text=True, check=True)
@@ -223,18 +212,17 @@ def main():
                 print(f"Existing remote 'origin': {existing_remote}")
                 choice = input("What would you like to do?\n1. Keep existing remote and continue\n2. Replace with new remote\n3. Abort\nChoice [1/2/3]: ").strip()
                 if choice == "1":
-                    return path, existing_remote  # Return both path and existing URL
+                    return path, existing_remote
                 elif choice == "2":
-                    return path, "REPLACE:" + existing_remote  # Signal to replace the remote
+                    return path, "REPLACE:" + existing_remote
                 else:
                     print("Aborting.")
                     exit(1)
             except subprocess.CalledProcessError:
-                # No remote exists, proceed normally - this is exactly what our script helps with!
                 print("Git repository exists but no remote configured. Perfect! We'll set that up for you.")
                 return path, None
 
-        return path, None  # Return path and None for URL when no existing repo
+        return path, None
 
     target_result = choose_target_folder(cli_folder)
     if isinstance(target_result, tuple):
@@ -244,13 +232,12 @@ def main():
     
     os.chdir(target)
 
-    # Use existing URL if available, otherwise ask for new one
     if existing_url and not existing_url.startswith("REPLACE:"):
         url = existing_url
         print(f"Using existing remote: {url}")
     else:
         if existing_url and existing_url.startswith("REPLACE:"):
-            old_url = existing_url[8:]  # Remove "REPLACE:" prefix
+            old_url = existing_url[8:]
             print(f"Current remote: {old_url}")
             print("🔄 You chose to replace the remote.")
         url = cli_url or input("Enter remote repository URL (https or git@): ").strip()
@@ -259,27 +246,22 @@ def main():
         print("No URL provided. Exiting.")
         exit(1)
 
-    # Extract the old URL for comparison if we're replacing
     old_remote_url = None
     if existing_url and existing_url.startswith("REPLACE:"):
-        old_remote_url = existing_url[8:]  # Remove "REPLACE:" prefix
+        old_remote_url = existing_url[8:]
 
     folder = os.path.basename(os.path.abspath(os.getcwd()))
     readme = "README.md"
     content = f"# {folder}\n\nThis repository was initialized by create_github_repo.py.\n"
     create_readme(readme, content)
 
-    # If .git already exists, skip git init
     if os.path.isdir(os.path.join(os.getcwd(), ".git")):
         print("Existing git repository detected. Skipping 'git init'.")
         
-        # Determine if we need to update the remote
         needs_remote_update = False
         if old_remote_url:
-            # We're replacing a remote
             needs_remote_update = True
         elif not existing_url or (existing_url and not existing_url.startswith("REPLACE:")):
-            # No existing remote, or keeping existing remote
             if not existing_url:
                 needs_remote_update = True
             elif existing_url != url:
@@ -287,19 +269,15 @@ def main():
         
         if needs_remote_update:
             if old_remote_url and old_remote_url == url:
-                # Same URL, no need to change
                 print("✅ Remote URL is the same. No changes needed.")
             elif old_remote_url:
-                # Different URL, replace the remote
                 print(f"🔄 Replacing remote from {old_remote_url} to {url}")
                 
-                # Method 1: Try git remote set-url (most reliable)
                 try:
                     set_url_result = subprocess.run(["git", "remote", "set-url", "origin", url], 
                                                    capture_output=True, text=True, check=True)
                     print("✅ Successfully updated remote URL")
                 except subprocess.CalledProcessError:
-                    # Method 2: Fallback to remove+add
                     print("🔄 Trying remove and add method...")
                     try:
                         remove_result = subprocess.run(["git", "remote", "remove", "origin"], 
@@ -311,17 +289,14 @@ def main():
                     except Exception as e:
                         print(f"⚠️  Exception removing remote: {e}")
                     
-                    # Now add the new remote
                     result = run_cmd(["git", "remote", "add", "origin", url])
                     if result is None:
                         print("⚠️  Remote setup was skipped. You may need to configure it manually.")
             else:
-                # No existing remote, add new one
                 result = run_cmd(["git", "remote", "add", "origin", url])
                 if result is None:
                     print("⚠️  Remote setup was skipped. You may need to configure it manually.")
         else:
-            # Same URL, no need to change remote
             print("✅ Remote 'origin' already configured correctly.")
     else:
         result = run_cmd(["git", "init"])
@@ -333,8 +308,6 @@ def main():
         if result is None:
             print("⚠️  Remote setup was skipped. You may need to configure it manually.")
 
-    # Continue with git operations, but check if each succeeds
-    # First, let's see what changes exist
     try:
         status_result = subprocess.run(["git", "status", "--porcelain"], 
                                      capture_output=True, text=True, check=True)
@@ -344,21 +317,18 @@ def main():
             print("📋 Detected changes in repository:")
             print(status_result.stdout)
             
-            # Add all changes, not just README
             print("📦 Adding all changes...")
             result = run_cmd(["git", "add", "."])
             if result is None:
                 print("⚠️  Could not add changes to git. You may need to do this manually.")
                 return
             
-            # Commit with a more appropriate message
             commit_msg = "Update repository with local changes"
             result = run_cmd(["git", "commit", "-m", commit_msg])
             if result is None:
                 print("⚠️  Could not create commit. You may need to do this manually.")
                 return
         else:
-            # No changes detected, just add README if it's new
             result = run_cmd(["git", "add", readme])
             if result is None:
                 print("⚠️  Could not add README to git. You may need to do this manually.")
@@ -366,7 +336,6 @@ def main():
             
             result = run_cmd(["git", "commit", "-m", "first commit"])
             if result is None:
-                # This is fine if there's nothing to commit
                 print("ℹ️  No new changes to commit.")
     except subprocess.CalledProcessError:
         print("⚠️  Could not check git status. Trying to add README anyway...")
@@ -379,7 +348,6 @@ def main():
     if result is None:
         print("⚠️  Could not rename branch to main. You may be on an older git version.")
     
-    # Try to push, handle different scenarios
     print("🚀 Pushing to remote repository...")
     result = run_cmd(["git", "push", "-u", "origin", "main"])
     if result is None:
