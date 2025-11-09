@@ -1,3 +1,6 @@
+![Visitor Count](https://visitor-badge.laobi.icu/badge?page_id=thechampusman.create_github_repo)
+
+
 # GitHub Repository Creator & Migration Tool
 
 [![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
